@@ -106,6 +106,7 @@ function App() {
     initializeTelegram();
     const user = getTelegramUser();
     if (user) {
+      console.log('Telegram user:', user); // Debug log
       setTelegramUser(user);
     } else {
       console.error('Failed to get Telegram user data');
@@ -114,7 +115,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (telegramUser) {
+    if (telegramUser?.id) {
+      console.log('Initializing with Telegram ID:', telegramUser.id); // Debug log
       const cleanup = usePointsStore.getState().initializeUser(telegramUser.id);
       setUnsubscribe(() => cleanup);
     }

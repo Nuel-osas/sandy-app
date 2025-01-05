@@ -25,7 +25,14 @@ const usePointsStore = create((set) => ({
   // Initialize the store with a user ID
   initializeUser: async (userId) => {
     try {
-      const userRef = doc(db, 'users', userId);
+      if (!userId) {
+        console.error('No user ID provided');
+        return;
+      }
+
+      // Convert userId to string if it's a number
+      const userIdStr = userId.toString();
+      const userRef = doc(db, 'users', userIdStr);
       
       // Set up real-time listener
       const unsubscribe = onSnapshot(userRef, (doc) => {
@@ -35,7 +42,7 @@ const usePointsStore = create((set) => ({
             points: data.points || 0,
             combo: data.combo || 1,
             multiplier: data.multiplier || 1,
-            userId,
+            userId: userIdStr,
             loading: false,
             error: null,
             lastClickTime: data.lastClickTime || null,
@@ -54,12 +61,13 @@ const usePointsStore = create((set) => ({
             totalClicks: 0,
             highestCombo: 1,
             achievements: [],
+            telegramId: userIdStr,
             createdAt: serverTimestamp()
           };
           setDoc(userRef, initialData);
           set({ 
             ...initialData,
-            userId,
+            userId: userIdStr,
             loading: false,
             error: null
           });
