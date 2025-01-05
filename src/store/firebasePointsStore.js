@@ -54,8 +54,6 @@ const usePointsStore = create((set) => ({
             totalClicks: 0,
             highestCombo: 1,
             achievements: [],
-            walletAddress: null,
-            telegramId: userId,
             createdAt: serverTimestamp()
           };
           setDoc(userRef, initialData);
@@ -67,7 +65,7 @@ const usePointsStore = create((set) => ({
           });
         }
       });
-
+      
       return unsubscribe;
     } catch (error) {
       set({ error: error.message, loading: false });
@@ -75,10 +73,10 @@ const usePointsStore = create((set) => ({
     }
   },
 
-  // Add points and update Firebase
+  // Add points and update Firebase - Simplified version
   addPoints: async (amount, boostMultiplier = 1) => {
     const state = usePointsStore.getState();
-    const { userId, combo, multiplier, highestCombo, totalClicks } = state;
+    const { userId, points, totalClicks } = state;
     
     if (!userId) {
       console.error('No user ID found');
@@ -87,24 +85,22 @@ const usePointsStore = create((set) => ({
 
     try {
       const now = new Date();
-      const newPoints = state.points + (amount * combo * multiplier * boostMultiplier);
-      const newCombo = combo + 1;
-      const newMultiplier = Math.floor(combo / 10) + 1;
+      // Simplified points calculation
+      const basePoints = amount * boostMultiplier;
+      const newPoints = Math.floor(points + basePoints);
       
       const newState = {
         points: newPoints,
-        combo: newCombo,
-        multiplier: newMultiplier,
         lastClickTime: now.toISOString(),
-        totalClicks: totalClicks + 1,
-        highestCombo: Math.max(highestCombo, newCombo)
+        totalClicks: totalClicks + 1
       };
 
       // Update Firestore
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, newState);
 
-      // State will be updated by the onSnapshot listener
+      // Update local state immediately for better responsiveness
+      set(newState);
     } catch (error) {
       set({ error: error.message });
       console.error('Error adding points:', error);
@@ -113,7 +109,9 @@ const usePointsStore = create((set) => ({
 
   // Break combo (when user takes too long between clicks)
   breakCombo: async () => {
-    const { userId } = usePointsStore.getState();
+    const state = usePointsStore.getState();
+    const { userId } = state;
+    
     if (!userId) return;
 
     try {
@@ -122,7 +120,6 @@ const usePointsStore = create((set) => ({
         combo: 1,
         multiplier: 1
       });
-      // State will be updated by the onSnapshot listener
     } catch (error) {
       set({ error: error.message });
       console.error('Error breaking combo:', error);
@@ -131,16 +128,17 @@ const usePointsStore = create((set) => ({
 
   // Add achievement
   addAchievement: async (achievement) => {
-    const { userId, achievements } = usePointsStore.getState();
+    const state = usePointsStore.getState();
+    const { userId, achievements } = state;
+    
     if (!userId) return;
+    if (achievements.includes(achievement)) return;
 
     try {
       const userRef = doc(db, 'users', userId);
-      const newAchievements = [...achievements, { ...achievement, unlockedAt: serverTimestamp() }];
       await updateDoc(userRef, {
-        achievements: newAchievements
+        achievements: [...achievements, achievement]
       });
-      // State will be updated by the onSnapshot listener
     } catch (error) {
       set({ error: error.message });
       console.error('Error adding achievement:', error);
@@ -149,17 +147,22 @@ const usePointsStore = create((set) => ({
 
   // Add or update wallet address
   updateWallet: async (walletAddress) => {
-    const { userId, walletAddress: existingWallet } = usePointsStore.getState();
-    if (!userId) return;
+    const state = usePointsStore.getState();
+    const { userId } = state;
     
-    // Prevent updating if wallet is already set
-    if (existingWallet) {
-      console.error('Wallet address can only be set once');
-      throw new Error('Wallet address can only be set once');
+    if (!userId) {
+      console.error('No user ID found');
+      return;
     }
 
     try {
       const userRef = doc(db, 'users', userId);
+      const docSnap = await getDoc(userRef);
+      
+      if (docSnap.exists() && docSnap.data().walletAddress) {
+        throw new Error('Wallet address can only be set once');
+      }
+
       await updateDoc(userRef, {
         walletAddress,
         walletSetAt: serverTimestamp()

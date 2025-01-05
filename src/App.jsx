@@ -235,6 +235,19 @@ function App() {
     }
   };
 
+  const handleEarnPoints = async () => {
+    if (!handleEnergyUse()) return;
+    
+    // Base points for each click
+    const basePoints = 1;
+    
+    // Apply boost multiplier if active
+    const finalPoints = activeBooster ? basePoints * boostMultiplier : basePoints;
+    
+    // Add points
+    await usePointsStore.getState().addPoints(finalPoints);
+  };
+
   return (
     <>
       <AnimatePresence>
@@ -425,7 +438,7 @@ function App() {
           >
             {activeSection === 'earn' && (
               <EarnCircle 
-                onEarnPoints={(points) => usePointsStore.getState().addPoints(points)} 
+                onEarnPoints={handleEarnPoints} 
                 onUseEnergy={handleEnergyUse}
                 energy={energy}
                 boostMultiplier={boostMultiplier}
@@ -653,8 +666,7 @@ const EarnCircle = ({ onEarnPoints, onUseEnergy, energy, boostMultiplier }) => {
     if (!onUseEnergy()) return;
 
     setIsClicked(true);
-    const pointsToAdd = boostMultiplier;
-    onEarnPoints(pointsToAdd);
+    onEarnPoints();
 
     // Reset click state after animation
     setTimeout(() => {
