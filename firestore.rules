@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read access to user's own data
+    match /users/{userId} {
+      allow read: if true; // Allow reading all user data for leaderboard
+      
+      // Only allow writes if wallet is not set or if updating non-wallet fields
+      allow write: if request.auth == null && 
+                  userId == request.resource.data.telegramId &&
+                  (
+                    !resource.data.walletAddress || // Allow if wallet not set
+                    (
+                      resource.data.walletAddress == request.resource.data.walletAddress // Wallet unchanged
+                    )
+                  );
+      
+      // Additional validation
+      function isValidUserData() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['points', 'combo', 'multiplier']) &&
+               data.points is number && 
+               data.combo is number && 
+               data.multiplier is number &&
+               (data.walletAddress == null || 
+                data.walletAddress is string && 
+                data.walletAddress.matches('^0x[a-fA-F0-9]{64}$')); // Validate SUI address format
+      }
+    }
+  }
+}

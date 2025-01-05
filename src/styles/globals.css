@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .sandy-gradient {
+    @apply bg-gradient-to-r from-sandy-light to-sandy hover:from-sandy hover:to-sandy-dark transition-all duration-300;
+  }
+  
+  .glass-effect {
+    @apply backdrop-blur-md bg-white/10 border border-white/20;
+  }
+}
+
+body {
+  @apply bg-black text-white overflow-hidden antialiased;
+} 
