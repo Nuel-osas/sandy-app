@@ -1,30 +1,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read access to user's own data
+    // Allow read access to user's own data and all users for leaderboard
     match /users/{userId} {
-      allow read: if true; // Allow reading all user data for leaderboard
+      allow read: if true;
       
-      // Only allow writes if wallet is not set or if updating non-wallet fields
-      allow write: if request.auth == null && 
-                  userId == request.resource.data.telegramId &&
-                  (
-                    !resource.data.walletAddress || // Allow if wallet not set
-                    (
-                      resource.data.walletAddress == request.resource.data.walletAddress // Wallet unchanged
-                    )
-                  );
+      // Allow writes if the document belongs to the user (by telegramId)
+      allow write: if 
+        (request.resource.data.telegramId == userId) &&
+        (
+          !resource.data || // Allow if document doesn't exist
+          resource.data.telegramId == request.resource.data.telegramId // Or if telegramId matches
+        ) &&
+        (
+          !resource.data.walletAddress || // Allow if wallet not set
+          resource.data.walletAddress == request.resource.data.walletAddress // Or if wallet unchanged
+        );
       
       // Additional validation
       function isValidUserData() {
         let data = request.resource.data;
-        return data.keys().hasAll(['points', 'combo', 'multiplier']) &&
-               data.points is number && 
-               data.combo is number && 
-               data.multiplier is number &&
-               (data.walletAddress == null || 
-                data.walletAddress is string && 
-                data.walletAddress.matches('^0x[a-fA-F0-9]{64}$')); // Validate SUI address format
+        return 
+          data.keys().hasAll(['points', 'telegramId']) &&
+          data.points is number &&
+          data.telegramId is string &&
+          (!data.walletAddress || (
+            data.walletAddress is string && 
+            data.walletAddress.matches('^0x[a-fA-F0-9]{64}$')
+          ));
       }
     }
   }

@@ -5,7 +5,11 @@ import {
   getDoc, 
   onSnapshot,
   updateDoc,
-  serverTimestamp 
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -32,7 +36,35 @@ const usePointsStore = create((set) => ({
 
       // Convert userId to string if it's a number
       const userIdStr = userId.toString();
-      const userRef = doc(db, 'users', userIdStr);
+      
+      // First, try to find user by telegramId
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('telegramId', '==', userIdStr));
+      const querySnapshot = await getDocs(q);
+      
+      let userRef;
+      let existingUserId;
+      
+      if (!querySnapshot.empty) {
+        // User exists with this telegramId
+        existingUserId = querySnapshot.docs[0].id;
+        userRef = doc(db, 'users', existingUserId);
+      } else {
+        // Create new user document
+        userRef = doc(db, 'users', userIdStr);
+        const initialData = {
+          points: 0,
+          combo: 1,
+          multiplier: 1,
+          lastClickTime: null,
+          totalClicks: 0,
+          highestCombo: 1,
+          achievements: [],
+          telegramId: userIdStr,
+          createdAt: serverTimestamp()
+        };
+        await setDoc(userRef, initialData);
+      }
       
       // Set up real-time listener
       const unsubscribe = onSnapshot(userRef, (doc) => {
@@ -42,7 +74,7 @@ const usePointsStore = create((set) => ({
             points: data.points || 0,
             combo: data.combo || 1,
             multiplier: data.multiplier || 1,
-            userId: userIdStr,
+            userId: existingUserId || userIdStr,
             loading: false,
             error: null,
             lastClickTime: data.lastClickTime || null,
@@ -51,33 +83,13 @@ const usePointsStore = create((set) => ({
             achievements: data.achievements || [],
             walletAddress: data.walletAddress || null
           });
-        } else {
-          // If user doesn't exist, create initial data
-          const initialData = {
-            points: 0,
-            combo: 1,
-            multiplier: 1,
-            lastClickTime: null,
-            totalClicks: 0,
-            highestCombo: 1,
-            achievements: [],
-            telegramId: userIdStr,
-            createdAt: serverTimestamp()
-          };
-          setDoc(userRef, initialData);
-          set({ 
-            ...initialData,
-            userId: userIdStr,
-            loading: false,
-            error: null
-          });
         }
       });
       
       return unsubscribe;
     } catch (error) {
-      set({ error: error.message, loading: false });
       console.error('Error initializing user:', error);
+      set({ error: error.message, loading: false });
     }
   },
 
@@ -100,7 +112,8 @@ const usePointsStore = create((set) => ({
       const newState = {
         points: newPoints,
         lastClickTime: now.toISOString(),
-        totalClicks: totalClicks + 1
+        totalClicks: totalClicks + 1,
+        updatedAt: serverTimestamp()
       };
 
       // Update Firestore
@@ -110,8 +123,8 @@ const usePointsStore = create((set) => ({
       // Update local state immediately for better responsiveness
       set(newState);
     } catch (error) {
-      set({ error: error.message });
       console.error('Error adding points:', error);
+      set({ error: error.message });
     }
   },
 
@@ -126,11 +139,12 @@ const usePointsStore = create((set) => ({
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         combo: 1,
-        multiplier: 1
+        multiplier: 1,
+        updatedAt: serverTimestamp()
       });
     } catch (error) {
-      set({ error: error.message });
       console.error('Error breaking combo:', error);
+      set({ error: error.message });
     }
   },
 
@@ -145,11 +159,12 @@ const usePointsStore = create((set) => ({
     try {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
-        achievements: [...achievements, achievement]
+        achievements: [...achievements, achievement],
+        updatedAt: serverTimestamp()
       });
     } catch (error) {
-      set({ error: error.message });
       console.error('Error adding achievement:', error);
+      set({ error: error.message });
     }
   },
 
@@ -173,11 +188,12 @@ const usePointsStore = create((set) => ({
 
       await updateDoc(userRef, {
         walletAddress,
-        walletSetAt: serverTimestamp()
+        walletSetAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
     } catch (error) {
-      set({ error: error.message });
       console.error('Error updating wallet:', error);
+      set({ error: error.message });
       throw error;
     }
   }
